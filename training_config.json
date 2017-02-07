@@ -1,0 +1,5 @@
+{
+	"yes": "./training-data/yes",
+	"no": "./training-data/no",
+	"null": "./training-data/null"
+}
