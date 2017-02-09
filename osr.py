@@ -40,7 +40,7 @@ class OpticalSpeechRecognizer(object):
 		
 		with h5py.File(self.training_save_fn, "r") as training_save_file:
 			sample_count = training_save_file.attrs["sample_count"]
-			pbi = PrintBatchInfo()
+			pbi = ProgressDisplay()
 			self.osr.fit_generator(generator=training_sequence_generator,
 								   validation_data=validation_sequence_generator,
 								   samples_per_epoch=sample_count,
@@ -89,7 +89,7 @@ class OpticalSpeechRecognizer(object):
 	def generate_osr_model(self):
 		""" Builds the optical speech recognizer model
 		"""
-		print "".join(["Generating OSR model\n",
+		print "".join(["\nGenerating OSR model\n",
 					   "-"*40])
 		with h5py.File(self.training_save_fn, "r") as training_save_file:
 			osr = Sequential()
@@ -280,9 +280,14 @@ class OpticalSpeechRecognizer(object):
 
 		return frames
 
-class PrintBatchInfo(Callback):
+class ProgressDisplay(Callback):
+	""" Progress display callback
+	"""
 	def on_batch_end(self, epoch, logs={}):
-		print logs
+		print "    Batch {0:<4d} => Accuracy: {1:>8.4f} | Loss: {2:>8.4f} | Size: {3:>4d}".format(int(logs["batch"]),
+																					              float(logs["acc"]),
+																					              float(logs["loss"]),
+																					              int(logs["size"]))
 
 if __name__ == "__main__":
 	osr = OpticalSpeechRecognizer(100, 100, 90, "training_config.json", "training_data.h5")
