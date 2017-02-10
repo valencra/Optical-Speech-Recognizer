@@ -304,7 +304,7 @@ class ProgressDisplay(Callback):
 
 if __name__ == "__main__":
 	osr = OpticalSpeechRecognizer(100, 150, 45, "training_config.json", "training_data.h5")
-	# osr.process_training_data()
+	osr.process_training_data()
 	osr.generate_osr_model()
 	osr.print_osr_summary()
 	osr.train_osr_model()
