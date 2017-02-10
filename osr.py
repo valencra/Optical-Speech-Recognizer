@@ -86,6 +86,12 @@ class OpticalSpeechRecognizer(object):
 						X = training_save_file["X"][-remainder_samples:]
 						Y = training_save_file["Y"][-remainder_samples:]
 
+	def print_osr_summary(self):
+		""" Prints a summary representation of the OSR model
+		"""
+		print "\n*** MODEL SUMMARY ***"
+		self.osr.summary()
+
 	def generate_osr_model(self):
 		""" Builds the optical speech recognizer model
 		"""
@@ -101,21 +107,7 @@ class OpticalSpeechRecognizer(object):
 								  border_mode="same",
 								  input_shape=(1, self.frames_per_sequence, self.rows, self.columns),
 								  activation="relu"))
-			osr.add(Dropout(0.2))
-			osr.add(Convolution3D(nb_filter=32,
-								  kernel_dim1=3,
-								  kernel_dim2=3,
-								  kernel_dim3=3,
-								  border_mode="same",
-								  activation="relu"))
 			osr.add(MaxPooling3D(pool_size=(3, 3, 3)))
-			osr.add(Convolution3D(nb_filter=64,
-								  kernel_dim1=3,
-								  kernel_dim2=3,
-								  kernel_dim3=3,
-								  border_mode="same",
-								  activation="relu"))
-			osr.add(Dropout(0.2))
 			osr.add(Convolution3D(nb_filter=64,
 								  kernel_dim1=3,
 								  kernel_dim2=3,
@@ -129,26 +121,17 @@ class OpticalSpeechRecognizer(object):
 								  kernel_dim3=3,
 								  border_mode="same",
 								  activation="relu"))
-			osr.add(Dropout(0.2))
-			osr.add(Convolution3D(nb_filter=128,
-								  kernel_dim1=3,
-								  kernel_dim2=3,
-								  kernel_dim3=3,
-								  border_mode="same",
-								  activation="relu"))
 			osr.add(MaxPooling3D(pool_size=(3, 3, 3)))
+			osr.add(Dropout(0.2))
 			osr.add(Flatten())
-			osr.add(Dropout(0.2))
 			print " - Adding fully connected layers"
 			osr.add(Dense(output_dim=128,
 						  init="normal",
 						  activation="relu"))
-			osr.add(Dropout(0.2))
-			osr.add(Dense(output_dim=64,
+			osr.add(Dense(output_dim=128,
 						  init="normal",
 						  activation="relu"))
-			osr.add(Dropout(0.2))
-			osr.add(Dense(output_dim=32,
+			osr.add(Dense(output_dim=128,
 						  init="normal",
 						  activation="relu"))
 			osr.add(Dropout(0.2))
@@ -323,5 +306,6 @@ if __name__ == "__main__":
 	osr = OpticalSpeechRecognizer(100, 150, 45, "training_config.json", "training_data.h5")
 	# osr.process_training_data()
 	osr.generate_osr_model()
+	osr.print_osr_summary()
 	osr.train_osr_model()
 
