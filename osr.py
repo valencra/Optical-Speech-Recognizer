@@ -258,27 +258,57 @@ class OpticalSpeechRecognizer(object):
 	def process_frames(self, video_file_path):
 		""" Splits frames, resizes frames, converts RGB frames to greyscale, and normalizes frames
 		"""
+		# haar cascades for localizing oral region
+		face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
+		mouth_cascade = cv2.CascadeClassifier('haarcascade_mcs_mouth.xml')
+
 		video = cv2.VideoCapture(video_file_path)
 		success, frame = video.read()
 
 		frames = []
 		success = True
 
-		# resize, convert to grayscale, normalize, and collect valid frames 
+		# convert to grayscale, localize oral region, equalize dimensions, 
+		# normalize pixels, equalize lengths, and accumulate valid frames 
 		while success:
 		  success, frame = video.read()
 		  if success:
-		  	frame = cv2.resize(frame, (self.rows, self.columns))
+		  	# convert to grayscale
 		  	frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-		  	frame = frame.astype('float32') / 255.0
-		  	frames.append(frame)
 
-		# pre-pad short sequences and equalize frame lengths
+		  	# localize single facial region
+		  	faces_coords = face_cascade.detectMultiScale(frame, 1.3, 5)
+		  	if len(faces_coords) == 1:
+		  	  face_x, face_y, face_w, face_h = faces_coords[0]
+		  	  frame = frame[face_y:face_y + face_h, face_x:face_x + face_w]
+
+		  	  # localize oral region
+		  	  mouth_coords = mouth_cascade.detectMultiScale(frame, 1.3, 5)
+		  	  threshold = 0
+		  	  for (mouth_x, mouth_y, mouth_w, mouth_h) in mouth_coords:
+		  	  	if (mouth_y > threshold):
+		  	  		threshold = mouth_y
+		  	  		valid_mouth_coords = (mouth_x, mouth_y, mouth_w, mouth_h)
+		  	  	else:
+		  	  		pass
+		  	  mouth_x, mouth_y, mouth_w, mouth_h = valid_mouth_coords
+		  	  frame = frame[mouth_y:mouth_y + mouth_h, mouth_x:mouth_x + mouth_w]
+
+		  	  # equalize dimensions and normalize pixels
+			  frame = cv2.resize(frame, (self.columns, self.rows))
+			  frame = frame.astype('float32') / 255.0
+			  frames.append(frame)
+
+			# ignore multiple facial region detections
+			else:
+				pass
+
+		# pre-pad short sequences and equalize sequence lengths
 		if len(frames) < self.frames_per_sequence:
 			frames = [frames[0]]*(self.frames_per_sequence - len(frames)) + frames
 		frames = frames[0:self.frames_per_sequence]
 
-		return frames
+		return [frames]
 
 class ProgressDisplay(Callback):
 	""" Progress display callback
@@ -290,8 +320,8 @@ class ProgressDisplay(Callback):
 																					              int(logs["size"]))
 
 if __name__ == "__main__":
-	osr = OpticalSpeechRecognizer(100, 100, 90, "training_config.json", "training_data.h5")
-	osr.process_training_data()
+	osr = OpticalSpeechRecognizer(100, 150, 45, "training_config.json", "training_data.h5")
+	# osr.process_training_data()
 	osr.generate_osr_model()
 	osr.train_osr_model()
 
