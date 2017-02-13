@@ -1,7 +1,7 @@
 from keras import backend as K
 from keras.callbacks import Callback
 from keras.constraints import maxnorm
-from keras.models import Sequential
+from keras.models import Sequential, load_model
 from keras.layers import Dense
 from keras.layers import Dropout
 from keras.layers import Flatten
@@ -11,6 +11,7 @@ from keras.optimizers import SGD
 from keras.utils import np_utils
 from keras.utils.io_utils import HDF5Matrix
 from pprint import pprint
+from random import shuffle
 from sklearn.utils import shuffle
 K.set_image_dim_ordering("th")
 
@@ -21,14 +22,40 @@ import os
 import sys
 import numpy as np
 
+
 class OpticalSpeechRecognizer(object):
-	def __init__(self, rows, columns, frames_per_sequence, config_file, training_save_fn):
+	def __init__(self, rows, columns, frames_per_sequence, config_file, training_save_fn, osr_save_fn):
 		self.rows = rows
 		self.columns = columns
 		self.frames_per_sequence = frames_per_sequence
 		self.config_file = config_file
 		self.training_save_fn = training_save_fn
+		self.osr_save_fn = osr_save_fn
 		self.osr = None
+
+	def save_osr_model(self):
+		""" Save the OSR model to an HDF5 file 
+		"""
+		# delete file if it already exists
+		try:
+			print "Saved file \"{0}\" already exists! Overwriting previous saved file.\n".format(self.osr_save_fn)
+			os.remove(self.osr_save_fn)
+		except OSError:
+			pass
+
+		print "Saving OSR model to \"{0}\"".format(self.osr_save_fn)
+		self.osr.save(self.osr_save_fn)
+
+	def load_osr_model(self):
+		""" Load the OSR model from an HDF5 file
+		"""
+		print "Loading OSR model from \"{0}\"".format(self.osr_save_fn)
+		self.osr = load_model(self.osr_save_fn)
+
+	def predict(self):
+		""" Predict articulated word from video input 
+		"""
+		pass # TO-DO
 
 	def train_osr_model(self):
 		""" Train the optical speech recognizer
@@ -57,34 +84,42 @@ class OpticalSpeechRecognizer(object):
 		while True:
 			with h5py.File(self.training_save_fn, "r") as training_save_file:
 				sample_count = int(training_save_file.attrs["sample_count"])
+				sample_idxs = range(0, sample_count)
+				shuffle(sample_idxs)
+				training_sample_idxs = sample_idxs[0:int((1-validation_ratio)*sample_count)]
+				validation_sample_idxs = sample_idxs[int((1-validation_ratio)*sample_count):]
+				  
 				# generate sequences for validation
 				if validation_ratio:
-					validation_sample_count = int(round(validation_ratio*sample_count))
-					validation_sample_idxs = np.random.randint(low=0, high=sample_count, size=validation_sample_count)
+					validation_sample_count = len(validation_sample_idxs)
 					batches = int(validation_sample_count/batch_size)
 					remainder_samples = validation_sample_count%batch_size
 					# generate batches of samples
 					for idx in xrange(0, batches):
-						X = training_save_file["X"][idx*batch_size:idx*batch_size+batch_size]
-						Y = training_save_file["Y"][idx*batch_size:idx*batch_size+batch_size]
+						X = training_save_file["X"][validation_sample_idxs[idx*batch_size:idx*batch_size+batch_size]]
+						Y = training_save_file["Y"][validation_sample_idxs[idx*batch_size:idx*batch_size+batch_size]]
 						yield (X, Y)
 					# send remainder samples as one batch, if there are any
 					if remainder_samples:
-						X = training_save_file["X"][-remainder_samples:]
-						Y = training_save_file["Y"][-remainder_samples:]
+						X = training_save_file["X"][validation_sample_idxs[-remainder_samples:]]
+						Y = training_save_file["Y"][validation_sample_idxs[-remainder_samples:]]
+						yield (X, Y)
+
 				# generate sequences for training
 				else:
-					batches = int(sample_count/batch_size)
-					remainder_samples = sample_count%batch_size
+					training_sample_count = len(training_sample_idxs)
+					batches = int(training_sample_count/batch_size)
+					remainder_samples = training_sample_count%batch_size
 					# generate batches of samples
 					for idx in xrange(0, batches):
-						X = training_save_file["X"][idx*batch_size:idx*batch_size+batch_size]
-						Y = training_save_file["Y"][idx*batch_size:idx*batch_size+batch_size]
+						X = training_save_file["X"][training_sample_idxs[idx*batch_size:idx*batch_size+batch_size]]
+						Y = training_save_file["Y"][training_sample_idxs[idx*batch_size:idx*batch_size+batch_size]]
 						yield (X, Y)
 					# send remainder samples as one batch, if there are any
 					if remainder_samples:
-						X = training_save_file["X"][-remainder_samples:]
-						Y = training_save_file["Y"][-remainder_samples:]
+						X = training_save_file["X"][training_sample_idxs[-remainder_samples:]]
+						Y = training_save_file["Y"][training_sample_idxs[-remainder_samples:]]
+						yield (X, Y)
 
 	def print_osr_summary(self):
 		""" Prints a summary representation of the OSR model
@@ -98,56 +133,58 @@ class OpticalSpeechRecognizer(object):
 		print "".join(["\nGenerating OSR model\n",
 					   "-"*40])
 		with h5py.File(self.training_save_fn, "r") as training_save_file:
-			osr = Sequential()
-			print " - Adding convolution layers"
-			osr.add(Convolution3D(nb_filter=32,
-								  kernel_dim1=3,
-								  kernel_dim2=3,
-								  kernel_dim3=3,
-								  border_mode="same",
-								  input_shape=(1, self.frames_per_sequence, self.rows, self.columns),
-								  activation="relu"))
-			osr.add(MaxPooling3D(pool_size=(3, 3, 3)))
-			osr.add(Convolution3D(nb_filter=64,
-								  kernel_dim1=3,
-								  kernel_dim2=3,
-								  kernel_dim3=3,
-								  border_mode="same",
-								  activation="relu"))
-			osr.add(MaxPooling3D(pool_size=(3, 3, 3)))
-			osr.add(Convolution3D(nb_filter=128,
-								  kernel_dim1=3,
-								  kernel_dim2=3,
-								  kernel_dim3=3,
-								  border_mode="same",
-								  activation="relu"))
-			osr.add(MaxPooling3D(pool_size=(3, 3, 3)))
-			osr.add(Dropout(0.2))
-			osr.add(Flatten())
-			print " - Adding fully connected layers"
-			osr.add(Dense(output_dim=128,
-						  init="normal",
-						  activation="relu"))
-			osr.add(Dense(output_dim=128,
-						  init="normal",
-						  activation="relu"))
-			osr.add(Dense(output_dim=128,
-						  init="normal",
-						  activation="relu"))
-			osr.add(Dropout(0.2))
-			osr.add(Dense(output_dim=len(training_save_file.attrs["training_classes"].split(",")),
-						  init="normal",
-						  activation="softmax"))
-			print " - Compiling model"
-			sgd = SGD(lr=0.01,
-					  decay=1e-6,
-					  momentum=0.9,
-					  nesterov=True)
-			osr.compile(loss="categorical_crossentropy",
-						optimizer=sgd,
-						metrics=["accuracy"])
-			self.osr = osr
-			print " * OSR MODEL GENERATED * "
+			class_count = len(training_save_file.attrs["training_classes"].split(","))
+
+		osr = Sequential()
+		print " - Adding convolution layers"
+		osr.add(Convolution3D(nb_filter=32,
+							  kernel_dim1=3,
+							  kernel_dim2=3,
+							  kernel_dim3=3,
+							  border_mode="same",
+							  input_shape=(1, self.frames_per_sequence, self.rows, self.columns),
+							  activation="relu"))
+		osr.add(MaxPooling3D(pool_size=(3, 3, 3)))
+		osr.add(Convolution3D(nb_filter=64,
+							  kernel_dim1=3,
+							  kernel_dim2=3,
+							  kernel_dim3=3,
+							  border_mode="same",
+							  activation="relu"))
+		osr.add(MaxPooling3D(pool_size=(3, 3, 3)))
+		osr.add(Convolution3D(nb_filter=128,
+							  kernel_dim1=3,
+							  kernel_dim2=3,
+							  kernel_dim3=3,
+							  border_mode="same",
+							  activation="relu"))
+		osr.add(MaxPooling3D(pool_size=(3, 3, 3)))
+		osr.add(Dropout(0.2))
+		osr.add(Flatten())
+		print " - Adding fully connected layers"
+		osr.add(Dense(output_dim=128,
+					  init="normal",
+					  activation="relu"))
+		osr.add(Dense(output_dim=128,
+					  init="normal",
+					  activation="relu"))
+		osr.add(Dense(output_dim=128,
+					  init="normal",
+					  activation="relu"))
+		osr.add(Dropout(0.2))
+		osr.add(Dense(output_dim=class_count,
+					  init="normal",
+					  activation="softmax"))
+		print " - Compiling model"
+		sgd = SGD(lr=0.01,
+				  decay=1e-6,
+				  momentum=0.9,
+				  nesterov=True)
+		osr.compile(loss="categorical_crossentropy",
+					optimizer=sgd,
+					metrics=["accuracy"])
+		self.osr = osr
+		print " * OSR MODEL GENERATED * "
 
 	def process_training_data(self):
 		""" Preprocesses training data and saves them into an HDF5 file
@@ -303,9 +340,12 @@ class ProgressDisplay(Callback):
 																					              int(logs["size"]))
 
 if __name__ == "__main__":
-	osr = OpticalSpeechRecognizer(100, 150, 45, "training_config.json", "training_data.h5")
+	# Example usage
+	osr = OpticalSpeechRecognizer(100, 150, 45, "training_config.json", "training_data.h5", "osr_model.h5")
 	osr.process_training_data()
 	osr.generate_osr_model()
 	osr.print_osr_summary()
 	osr.train_osr_model()
+	osr.save_osr_model()
+	osr.load_osr_model()
 
