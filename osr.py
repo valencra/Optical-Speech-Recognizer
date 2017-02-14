@@ -7,7 +7,7 @@ from keras.layers import Dropout
 from keras.layers import Flatten
 from keras.layers.convolutional import Convolution3D
 from keras.layers.convolutional import MaxPooling3D
-from keras.optimizers import SGD
+from keras.optimizers import Nadam
 from keras.utils import np_utils
 from keras.utils.io_utils import HDF5Matrix
 from pprint import pprint
@@ -52,18 +52,14 @@ class OpticalSpeechRecognizer(object):
 		print "Loading OSR model from \"{0}\"".format(self.osr_save_fn)
 		self.osr = load_model(self.osr_save_fn)
 
-	def predict(self):
-		""" Predict articulated word from video input 
-		"""
-		pass # TO-DO
-
 	def train_osr_model(self):
 		""" Train the optical speech recognizer
 		"""
 		print "\nTraining OSR"
 		validation_ratio = 0.3
-		training_sequence_generator = self.generate_training_sequences(batch_size=10)
-		validation_sequence_generator = self.generate_training_sequences(batch_size=10, validation_ratio=validation_ratio)
+		batch_size = 25
+		training_sequence_generator = self.generate_training_sequences(batch_size=batch_size)
+		validation_sequence_generator = self.generate_training_sequences(batch_size=batch_size, validation_ratio=validation_ratio)
 		
 		with h5py.File(self.training_save_fn, "r") as training_save_file:
 			sample_count = training_save_file.attrs["sample_count"]
@@ -176,13 +172,14 @@ class OpticalSpeechRecognizer(object):
 					  init="normal",
 					  activation="softmax"))
 		print " - Compiling model"
-		sgd = SGD(lr=0.01,
-				  decay=1e-6,
-				  momentum=0.9,
-				  nesterov=True)
+		optimizer = Nadam(lr=0.002,
+						  beta_1=0.9,
+						  beta_2=0.999,
+						  epsilon=1e-08,
+						  schedule_decay=0.004)
 		osr.compile(loss="categorical_crossentropy",
-					optimizer=sgd,
-					metrics=["accuracy"])
+					optimizer=optimizer,
+					metrics=["categorical_accuracy"])
 		self.osr = osr
 		print " * OSR MODEL GENERATED * "
 
@@ -334,8 +331,8 @@ class ProgressDisplay(Callback):
 	""" Progress display callback
 	"""
 	def on_batch_end(self, epoch, logs={}):
-		print "    Batch {0:<4d} => Accuracy: {1:>8.4f} | Loss: {2:>8.4f} | Size: {3:>4d}".format(int(logs["batch"]),
-																					              float(logs["acc"]),
+		print "    Batch {0:<4d} => Accuracy: {1:>8.4f} | Loss: {2:>8.4f} | Size: {3:>4d}".format(int(logs["batch"])+1,
+																					              float(logs["categorical_accuracy"]),
 																					              float(logs["loss"]),
 																					              int(logs["size"]))
 
@@ -348,4 +345,3 @@ if __name__ == "__main__":
 	osr.train_osr_model()
 	osr.save_osr_model()
 	osr.load_osr_model()
-
