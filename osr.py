@@ -71,6 +71,7 @@ class OpticalSpeechRecognizer(object):
 								   samples_per_epoch=sample_count,
 								   nb_val_samples=int(round(validation_ratio*sample_count)),
 								   nb_epoch=10,
+								   max_q_size=1,
 								   verbose=2,
 								   callbacks=[pbi],
 								   class_weight=None,
@@ -278,7 +279,7 @@ class OpticalSpeechRecognizer(object):
 			print "Training data processed and saved to {0}".format(self.training_save_fn)
 
 	def process_frames(self, video_file_path):
-		""" Splits frames, resizes frames, converts RGB frames to greyscale, and normalizes frames
+		""" Preprocesses sequence frames
 		"""
 		# haar cascades for localizing oral region
 		face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
@@ -335,6 +336,7 @@ class OpticalSpeechRecognizer(object):
 
 		samples_batch = [[map(pix_norm, frames)]]
 
+		# random transformations for data augmentation
 		for _ in xrange(0, self.samples_generated_per_sample-1):
 			rotated_frames = random_rotation(frames, rg=45)
 			shifted_frames = random_shift(rotated_frames, wrg=0.25, hrg=0.25)
@@ -362,7 +364,7 @@ if __name__ == "__main__":
 								  config_file="training_config.json", 
 								  training_save_fn="training_data.h5", 
 								  osr_save_fn="osr_model.h5")
-	osr.process_training_data()
+	# osr.process_training_data()
 	osr.generate_osr_model()
 	osr.print_osr_summary()
 	osr.train_osr_model()
