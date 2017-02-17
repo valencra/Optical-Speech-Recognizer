@@ -8,6 +8,7 @@ from keras.layers import Flatten
 from keras.layers.convolutional import Convolution3D
 from keras.layers.convolutional import MaxPooling3D
 from keras.optimizers import Nadam
+from keras.preprocessing.image import random_rotation, random_shift, random_shear, random_zoom
 from keras.utils import np_utils
 from keras.utils.io_utils import HDF5Matrix
 from pprint import pprint
@@ -24,10 +25,11 @@ import numpy as np
 
 
 class OpticalSpeechRecognizer(object):
-	def __init__(self, rows, columns, frames_per_sequence, config_file, training_save_fn, osr_save_fn):
+	def __init__(self, rows, columns, frames_per_sequence, samples_generated_per_sample, config_file, training_save_fn, osr_save_fn):
 		self.rows = rows
 		self.columns = columns
 		self.frames_per_sequence = frames_per_sequence
+		self.samples_generated_per_sample = samples_generated_per_sample
 		self.config_file = config_file
 		self.training_save_fn = training_save_fn
 		self.osr_save_fn = osr_save_fn
@@ -229,6 +231,9 @@ class OpticalSpeechRecognizer(object):
 			pass
 
 		# process and save training data into HDF5 file
+		print "Generating {0} samples from {1} samples via data augmentation\n".format(sample_count*self.samples_generated_per_sample,
+																					   sample_count)
+		sample_count = sample_count*self.samples_generated_per_sample
 		with h5py.File(self.training_save_fn, "w") as training_save_file:
 			training_save_file.attrs["training_classes"] = np.string_(",".join(training_classes))
 			training_save_file.attrs["sample_count"] = sample_count
@@ -254,17 +259,17 @@ class OpticalSpeechRecognizer(object):
 								     .format(training_class, idx+1, len(training_class_sequence_paths)))
 					sys.stdout.flush()
 					
-					# append grayscale, normalized sample frames
-					frames = self.process_frames(training_class_sequence_path)
-					x_training_dataset[sample_idx] = [frames]
-
-					# append one-hot encoded sample label
+					# accumulate samples and labels
+					samples_batch = self.process_frames(training_class_sequence_path)
 					label = [0]*len(training_classes)
 					label[class_label] = 1
-					y_training_dataset[sample_idx] = label
 
-					# update sample index
-					sample_idx += 1
+					for sample in samples_batch:
+						x_training_dataset[sample_idx] = sample
+						y_training_dataset[sample_idx] = label
+
+						# update sample index
+						sample_idx += 1
 
 				print "\n"
 
@@ -285,8 +290,7 @@ class OpticalSpeechRecognizer(object):
 		frames = []
 		success = True
 
-		# convert to grayscale, localize oral region, equalize dimensions, 
-		# normalize pixels, equalize lengths, and accumulate valid frames 
+		# convert to grayscale, localize oral region, equalize frame dimensions, and accumulate valid frames 
 		while success:
 		  success, frame = video.read()
 		  if success:
@@ -311,21 +315,34 @@ class OpticalSpeechRecognizer(object):
 		  	  mouth_x, mouth_y, mouth_w, mouth_h = valid_mouth_coords
 		  	  frame = frame[mouth_y:mouth_y + mouth_h, mouth_x:mouth_x + mouth_w]
 
-		  	  # equalize dimensions and normalize pixels
-			  frame = cv2.resize(frame, (self.columns, self.rows))
-			  frame = frame.astype('float32') / 255.0
+		  	  # equalize frame dimensions
+		  	  frame = cv2.resize(frame, (self.columns, self.rows)).astype('float32')
+
+		  	  # accumulate frames
 			  frames.append(frame)
 
 			# ignore multiple facial region detections
 			else:
 				pass
 
-		# pre-pad short sequences and equalize sequence lengths
+		# equalize sequence lengths 
 		if len(frames) < self.frames_per_sequence:
 			frames = [frames[0]]*(self.frames_per_sequence - len(frames)) + frames
-		frames = frames[0:self.frames_per_sequence]
+		frames = np.asarray(frames[0:self.frames_per_sequence])
 
-		return [frames]
+		# pixel normalizer
+		pix_norm = lambda frame: frame / 255.0
+
+		samples_batch = [[map(pix_norm, frames)]]
+
+		for _ in xrange(0, self.samples_generated_per_sample-1):
+			rotated_frames = random_rotation(frames, rg=45)
+			shifted_frames = random_shift(rotated_frames, wrg=0.25, hrg=0.25)
+			sheared_frames = random_shear(shifted_frames, intensity=0.79)
+			zoomed_frames = random_zoom(sheared_frames, zoom_range=(1.25, 1.25))
+			samples_batch.append([map(pix_norm, zoomed_frames)])
+
+		return samples_batch
 
 class ProgressDisplay(Callback):
 	""" Progress display callback
@@ -338,7 +355,13 @@ class ProgressDisplay(Callback):
 
 if __name__ == "__main__":
 	# Example usage
-	osr = OpticalSpeechRecognizer(100, 150, 45, "training_config.json", "training_data.h5", "osr_model.h5")
+	osr = OpticalSpeechRecognizer(rows=100, 
+								  columns=150, 
+								  frames_per_sequence=45, 
+								  samples_generated_per_sample=10, 
+								  config_file="training_config.json", 
+								  training_save_fn="training_data.h5", 
+								  osr_save_fn="osr_model.h5")
 	osr.process_training_data()
 	osr.generate_osr_model()
 	osr.print_osr_summary()
