@@ -25,11 +25,11 @@ import numpy as np
 
 
 class OpticalSpeechRecognizer(object):
-	def __init__(self, rows, columns, frames_per_sequence, samples_generated_per_sample, config_file, training_save_fn, osr_save_fn):
+	def __init__(self, samples_generated_per_sample, frames_per_sequence, rows, columns, config_file, training_save_fn, osr_save_fn):
+		self.samples_generated_per_sample = samples_generated_per_sample
+		self.frames_per_sequence = frames_per_sequence
 		self.rows = rows
 		self.columns = columns
-		self.frames_per_sequence = frames_per_sequence
-		self.samples_generated_per_sample = samples_generated_per_sample
 		self.config_file = config_file
 		self.training_save_fn = training_save_fn
 		self.osr_save_fn = osr_save_fn
@@ -239,8 +239,8 @@ class OpticalSpeechRecognizer(object):
 			training_save_file.attrs["training_classes"] = np.string_(",".join(training_classes))
 			training_save_file.attrs["sample_count"] = sample_count
 			x_training_dataset = training_save_file.create_dataset("X", 
-																  shape=(sample_count, 1, self.frames_per_sequence, self.rows, self.columns),
-																  dtype="f")
+																   shape=(sample_count, self.frames_per_sequence, 1, self.rows, self.columns),
+																   dtype="f")
 			y_training_dataset = training_save_file.create_dataset("Y",
 																   shape=(sample_count, len(training_classes)),
 																   dtype="i")
@@ -331,10 +331,10 @@ class OpticalSpeechRecognizer(object):
 			frames = [frames[0]]*(self.frames_per_sequence - len(frames)) + frames
 		frames = np.asarray(frames[0:self.frames_per_sequence])
 
-		# pixel normalizer
-		pix_norm = lambda frame: frame / 255.0
+		# function to normalize and add channel dimension to each frame
+		proc_frame = lambda frame: [frame / 255.0]
 
-		samples_batch = [[map(pix_norm, frames)]]
+		samples_batch = [map(proc_frame, frames)]
 
 		# random transformations for data augmentation
 		for _ in xrange(0, self.samples_generated_per_sample-1):
@@ -342,7 +342,7 @@ class OpticalSpeechRecognizer(object):
 			shifted_frames = random_shift(rotated_frames, wrg=0.25, hrg=0.25)
 			sheared_frames = random_shear(shifted_frames, intensity=0.79)
 			zoomed_frames = random_zoom(sheared_frames, zoom_range=(1.25, 1.25))
-			samples_batch.append([map(pix_norm, zoomed_frames)])
+			samples_batch.append(map(proc_frame, zoomed_frames))
 
 		return samples_batch
 
@@ -357,16 +357,16 @@ class ProgressDisplay(Callback):
 
 if __name__ == "__main__":
 	# Example usage
-	osr = OpticalSpeechRecognizer(rows=100, 
-								  columns=150, 
+	osr = OpticalSpeechRecognizer(samples_generated_per_sample=10, 
 								  frames_per_sequence=45, 
-								  samples_generated_per_sample=10, 
+								  rows=100, 
+								  columns=150,
 								  config_file="training_config.json", 
 								  training_save_fn="training_data.h5", 
 								  osr_save_fn="osr_model.h5")
-	# osr.process_training_data()
-	osr.generate_osr_model()
-	osr.print_osr_summary()
-	osr.train_osr_model()
-	osr.save_osr_model()
-	osr.load_osr_model()
+	osr.process_training_data()
+	# osr.generate_osr_model()
+	# osr.print_osr_summary()
+	# osr.train_osr_model()
+	# osr.save_osr_model()
+	# osr.load_osr_model()
