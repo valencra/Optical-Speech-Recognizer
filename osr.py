@@ -1,5 +1,5 @@
 from keras import backend as K
-from keras.applications import InceptionV3
+from keras.applications.inception_v3 import InceptionV3
 from keras.callbacks import Callback
 from keras.constraints import maxnorm
 from keras.models import Model, load_model
@@ -142,7 +142,8 @@ class OpticalSpeechRecognizer(object):
 		cnn.trainable = False
 		encoded_frames = TimeDistributed(cnn)(video)
 		encoded_vid = LSTM(256)(encoded_frames)
-		outputs = Dense(output_dim=class_count, activation="softmax")Dense(output_dim=1024, activation="relu")(encoded_vid)
+		hidden_layer = Dense(output_dim=1024, activation="relu")(encoded_vid)
+		outputs = Dense(output_dim=class_count, activation="softmax")(hidden_layer)
 		osr = Model([video], outputs)
 		optimizer = Nadam(lr=0.002,
 						  beta_1=0.9,
