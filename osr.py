@@ -137,8 +137,7 @@ class OpticalSpeechRecognizer(object):
 							 self.rows,
 							 self.columns))
 		cnn = InceptionV3(weights="imagenet",
-						  include_top=False,
-						  pool="avg")
+						  include_top=False)
 		cnn.trainable = False
 		encoded_frames = TimeDistributed(cnn)(video)
 		encoded_vid = LSTM(256)(encoded_frames)
