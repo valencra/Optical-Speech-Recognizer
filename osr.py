@@ -1,12 +1,11 @@
 from keras import backend as K
+from keras.applications import InceptionV3
 from keras.callbacks import Callback
 from keras.constraints import maxnorm
-from keras.models import Sequential, load_model
-from keras.layers import Dense
-from keras.layers import Dropout
-from keras.layers import Flatten
-from keras.layers.convolutional import Convolution3D
-from keras.layers.convolutional import MaxPooling3D
+from keras.models import Model, load_model
+from keras.layers import Dense, Dropout, Flatten, Input
+from keras.layers.wrappers import TimeDistributed
+from keras.layers.recurrent import LSTM
 from keras.optimizers import Nadam
 from keras.preprocessing.image import random_rotation, random_shift, random_shear, random_zoom
 from keras.utils import np_utils
@@ -59,7 +58,7 @@ class OpticalSpeechRecognizer(object):
 		"""
 		print "\nTraining OSR"
 		validation_ratio = 0.3
-		batch_size = 25
+		batch_size = 10
 		training_sequence_generator = self.generate_training_sequences(batch_size=batch_size)
 		validation_sequence_generator = self.generate_training_sequences(batch_size=batch_size, validation_ratio=validation_ratio)
 		
@@ -133,48 +132,18 @@ class OpticalSpeechRecognizer(object):
 					   "-"*40])
 		with h5py.File(self.training_save_fn, "r") as training_save_file:
 			class_count = len(training_save_file.attrs["training_classes"].split(","))
-
-		osr = Sequential()
-		print " - Adding convolution layers"
-		osr.add(Convolution3D(nb_filter=32,
-							  kernel_dim1=3,
-							  kernel_dim2=3,
-							  kernel_dim3=3,
-							  border_mode="same",
-							  input_shape=(1, self.frames_per_sequence, self.rows, self.columns),
-							  activation="relu"))
-		osr.add(MaxPooling3D(pool_size=(3, 3, 3)))
-		osr.add(Convolution3D(nb_filter=64,
-							  kernel_dim1=3,
-							  kernel_dim2=3,
-							  kernel_dim3=3,
-							  border_mode="same",
-							  activation="relu"))
-		osr.add(MaxPooling3D(pool_size=(3, 3, 3)))
-		osr.add(Convolution3D(nb_filter=128,
-							  kernel_dim1=3,
-							  kernel_dim2=3,
-							  kernel_dim3=3,
-							  border_mode="same",
-							  activation="relu"))
-		osr.add(MaxPooling3D(pool_size=(3, 3, 3)))
-		osr.add(Dropout(0.2))
-		osr.add(Flatten())
-		print " - Adding fully connected layers"
-		osr.add(Dense(output_dim=128,
-					  init="normal",
-					  activation="relu"))
-		osr.add(Dense(output_dim=128,
-					  init="normal",
-					  activation="relu"))
-		osr.add(Dense(output_dim=128,
-					  init="normal",
-					  activation="relu"))
-		osr.add(Dropout(0.2))
-		osr.add(Dense(output_dim=class_count,
-					  init="normal",
-					  activation="softmax"))
-		print " - Compiling model"
+		video = Input(shape=(self.frames_per_sequence,
+							 1,
+							 self.rows,
+							 self.columns))
+		cnn = InceptionV3(weights="imagenet",
+						  include_top=False,
+						  pool="avg")
+		cnn.trainable = False
+		encoded_frames = TimeDistributed(cnn)(video)
+		encoded_vid = LSTM(256)(encoded_frames)
+		outputs = Dense(output_dim=class_count, activation="softmax")Dense(output_dim=1024, activation="relu")(encoded_vid)
+		osr = Model([video], outputs)
 		optimizer = Nadam(lr=0.002,
 						  beta_1=0.9,
 						  beta_2=0.999,
@@ -183,7 +152,6 @@ class OpticalSpeechRecognizer(object):
 		osr.compile(loss="categorical_crossentropy",
 					optimizer=optimizer,
 					metrics=["categorical_accuracy"])
-		self.osr = osr
 		print " * OSR MODEL GENERATED * "
 
 	def process_training_data(self):
@@ -365,8 +333,8 @@ if __name__ == "__main__":
 								  training_save_fn="training_data.h5", 
 								  osr_save_fn="osr_model.h5")
 	osr.process_training_data()
-	# osr.generate_osr_model()
-	# osr.print_osr_summary()
-	# osr.train_osr_model()
-	# osr.save_osr_model()
-	# osr.load_osr_model()
+	osr.generate_osr_model()
+	osr.print_osr_summary()
+	osr.train_osr_model()
+	osr.save_osr_model()
+	osr.load_osr_model()
