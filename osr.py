@@ -134,10 +134,10 @@ class OpticalSpeechRecognizer(object):
 		with h5py.File(self.training_save_fn, "r") as training_save_file:
 			class_count = len(training_save_file.attrs["training_classes"].split(","))
 		video = Input(shape=(self.frames_per_sequence,
-							 1,
+							 3,
 							 self.rows,
 							 self.columns))
-		cnn_base = VGG16(input_shape=(1,
+		cnn_base = VGG16(input_shape=(3,
 									  self.rows, 
 									  self.columns),
 						 weights="imagenet",
@@ -213,7 +213,7 @@ class OpticalSpeechRecognizer(object):
 			training_save_file.attrs["training_classes"] = np.string_(",".join(training_classes))
 			training_save_file.attrs["sample_count"] = sample_count
 			x_training_dataset = training_save_file.create_dataset("X", 
-																   shape=(sample_count, self.frames_per_sequence, 1, self.rows, self.columns),
+																   shape=(sample_count, self.frames_per_sequence, 3, self.rows, self.columns),
 																   dtype="f")
 			y_training_dataset = training_save_file.create_dataset("Y",
 																   shape=(sample_count, len(training_classes)),
@@ -306,10 +306,9 @@ class OpticalSpeechRecognizer(object):
 		frames = np.asarray(frames[0:self.frames_per_sequence])
 
 		# function to normalize and add channel dimension to each frame
-		proc_frame = lambda frame: [frame / 255.0]
+		proc_frame = lambda frame: np.array([frame / 255.0]*3)
 
 		samples_batch = [map(proc_frame, frames)]
-
 		# random transformations for data augmentation
 		for _ in xrange(0, self.samples_generated_per_sample-1):
 			rotated_frames = random_rotation(frames, rg=45)
