@@ -142,7 +142,7 @@ class OpticalSpeechRecognizer(object):
 									  self.columns),
 						 weights="imagenet",
 						 include_top=False)
-		cnn_out = GlobalAveragePooling2D()(cnn_base)
+		cnn_out = GlobalAveragePooling2D()(cnn_base.output)
 		cnn = Model(input=cnn_base.input, output=cnn_out)
 		cnn.trainable = False
 		encoded_frames = TimeDistributed(cnn)(video)
@@ -158,6 +158,7 @@ class OpticalSpeechRecognizer(object):
 		osr.compile(loss="categorical_crossentropy",
 					optimizer=optimizer,
 					metrics=["categorical_accuracy"])
+		self.osr = osr
 		print " * OSR MODEL GENERATED * "
 
 	def process_training_data(self):
