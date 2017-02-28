@@ -137,7 +137,10 @@ class OpticalSpeechRecognizer(object):
 							 1,
 							 self.rows,
 							 self.columns))
-		cnn_base = VGG16(weights="imagenet",
+		cnn_base = VGG16(input_shape=(1,
+									  self.rows, 
+									  self.columns),
+						 weights="imagenet",
 						 include_top=False)
 		cnn_out = GlobalAveragePooling2D()(cnn_base)
 		cnn = Model(input=cnn_base.input, output=cnn_out)
