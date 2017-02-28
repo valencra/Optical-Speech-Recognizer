@@ -1,11 +1,12 @@
 from keras import backend as K
-from keras.applications.inception_v3 import InceptionV3
+from keras.applications.vgg16 import VGG16
 from keras.callbacks import Callback
 from keras.constraints import maxnorm
 from keras.models import Model, load_model
 from keras.layers import Dense, Dropout, Flatten, Input
-from keras.layers.wrappers import TimeDistributed
+from keras.layers.pooling import GlobalAveragePooling2D
 from keras.layers.recurrent import LSTM
+from keras.layers.wrappers import TimeDistributed
 from keras.optimizers import Nadam
 from keras.preprocessing.image import random_rotation, random_shift, random_shear, random_zoom
 from keras.utils import np_utils
@@ -136,8 +137,10 @@ class OpticalSpeechRecognizer(object):
 							 1,
 							 self.rows,
 							 self.columns))
-		cnn = InceptionV3(weights="imagenet",
-						  include_top=False)
+		cnn_base = VGG16(weights="imagenet",
+						 include_top=False)
+		cnn_out = GlobalAveragePooling2D()(cnn_base)
+		cnn = Model(input=cnn_base.input, output=cnn_out)
 		cnn.trainable = False
 		encoded_frames = TimeDistributed(cnn)(video)
 		encoded_vid = LSTM(256)(encoded_frames)
