@@ -97,12 +97,12 @@ class OpticalSpeechRecognizer(object):
 					for idx in xrange(0, batches):
 						X = training_save_file["X"][validation_sample_idxs[idx*batch_size:idx*batch_size+batch_size]]
 						Y = training_save_file["Y"][validation_sample_idxs[idx*batch_size:idx*batch_size+batch_size]]
-						yield (X, Y)
+						yield (np.array(X), np.array(Y))
 					# send remainder samples as one batch, if there are any
 					if remainder_samples:
 						X = training_save_file["X"][validation_sample_idxs[-remainder_samples:]]
 						Y = training_save_file["Y"][validation_sample_idxs[-remainder_samples:]]
-						yield (X, Y)
+						yield (np.array(X), np.array(Y))
 
 				# generate sequences for training
 				else:
@@ -113,12 +113,12 @@ class OpticalSpeechRecognizer(object):
 					for idx in xrange(0, batches):
 						X = training_save_file["X"][training_sample_idxs[idx*batch_size:idx*batch_size+batch_size]]
 						Y = training_save_file["Y"][training_sample_idxs[idx*batch_size:idx*batch_size+batch_size]]
-						yield (X, Y)
+						yield (np.array(X), np.array(Y))
 					# send remainder samples as one batch, if there are any
 					if remainder_samples:
 						X = training_save_file["X"][training_sample_idxs[-remainder_samples:]]
 						Y = training_save_file["Y"][training_sample_idxs[-remainder_samples:]]
-						yield (X, Y)
+						yield (np.array(X), np.array(Y))
 
 	def print_osr_summary(self):
 		""" Prints a summary representation of the OSR model
@@ -239,6 +239,7 @@ class OpticalSpeechRecognizer(object):
 					samples_batch = self.process_frames(training_class_sequence_path)
 					label = [0]*len(training_classes)
 					label[class_label] = 1
+					label = np.array(label).astype("float32")
 
 					for sample in samples_batch:
 						x_training_dataset[sample_idx] = sample
@@ -304,19 +305,19 @@ class OpticalSpeechRecognizer(object):
 		# equalize sequence lengths 
 		if len(frames) < self.frames_per_sequence:
 			frames = [frames[0]]*(self.frames_per_sequence - len(frames)) + frames
-		frames = np.asarray(frames[0:self.frames_per_sequence])
+		frames = np.array(frames[-self.frames_per_sequence:])
 
 		# function to normalize and add channel dimension to each frame
 		proc_frame = lambda frame: np.array([frame / 255.0]*3)
 
-		samples_batch = [map(proc_frame, frames)]
+		samples_batch = [np.array(map(proc_frame, frames))]
 		# random transformations for data augmentation
 		for _ in xrange(0, self.samples_generated_per_sample-1):
 			rotated_frames = random_rotation(frames, rg=45)
 			shifted_frames = random_shift(rotated_frames, wrg=0.25, hrg=0.25)
 			sheared_frames = random_shear(shifted_frames, intensity=0.79)
 			zoomed_frames = random_zoom(sheared_frames, zoom_range=(1.25, 1.25))
-			samples_batch.append(map(proc_frame, zoomed_frames))
+			samples_batch.append(np.array(map(proc_frame, zoomed_frames)))
 
 		return samples_batch
 
@@ -331,7 +332,7 @@ class ProgressDisplay(Callback):
 
 if __name__ == "__main__":
 	# Example usage
-	osr = OpticalSpeechRecognizer(samples_generated_per_sample=100, 
+	osr = OpticalSpeechRecognizer(samples_generated_per_sample=10, 
 								  frames_per_sequence=30, 
 								  rows=100, 
 								  columns=150,
