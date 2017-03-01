@@ -59,7 +59,7 @@ class OpticalSpeechRecognizer(object):
 		"""
 		print "\nTraining OSR"
 		validation_ratio = 0.3
-		batch_size = 10
+		batch_size = 32
 		training_sequence_generator = self.generate_training_sequences(batch_size=batch_size)
 		validation_sequence_generator = self.generate_training_sequences(batch_size=batch_size, validation_ratio=validation_ratio)
 		
@@ -331,8 +331,8 @@ class ProgressDisplay(Callback):
 
 if __name__ == "__main__":
 	# Example usage
-	osr = OpticalSpeechRecognizer(samples_generated_per_sample=10, 
-								  frames_per_sequence=45, 
+	osr = OpticalSpeechRecognizer(samples_generated_per_sample=100, 
+								  frames_per_sequence=30, 
 								  rows=100, 
 								  columns=150,
 								  config_file="training_config.json", 
