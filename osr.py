@@ -75,8 +75,8 @@ class OpticalSpeechRecognizer(object):
 			pbi = ProgressDisplay()
 			self.osr.fit_generator(generator=training_sequence_generator,
 								   validation_data=validation_sequence_generator,
-								   samples_per_epoch=sample_count,
-								   nb_val_samples=int(round(validation_ratio*sample_count)),
+								   samples_per_epoch=len(training_sample_idxs),
+								   nb_val_samples=len(validation_sample_idxs),
 								   nb_epoch=10,
 								   max_q_size=1,
 								   verbose=2,
