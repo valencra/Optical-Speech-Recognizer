@@ -60,11 +60,18 @@ class OpticalSpeechRecognizer(object):
 		print "\nTraining OSR"
 		validation_ratio = 0.3
 		batch_size = 32
-		training_sequence_generator = self.generate_training_sequences(batch_size=batch_size)
-		validation_sequence_generator = self.generate_training_sequences(batch_size=batch_size, validation_ratio=validation_ratio)
-		
 		with h5py.File(self.training_save_fn, "r") as training_save_file:
-			sample_count = training_save_file.attrs["sample_count"]
+			sample_count = int(training_save_file.attrs["sample_count"])
+			sample_idxs = range(0, sample_count)
+			shuffle(sample_idxs)
+			training_sample_idxs = sample_idxs[0:int((1-validation_ratio)*sample_count)]
+			validation_sample_idxs = sample_idxs[int((1-validation_ratio)*sample_count):]
+			training_sequence_generator = self.generate_training_sequences(batch_size=batch_size, 
+																		   training_save_file=training_save_file,
+																		   training_sample_idxs=training_sample_idxs)
+			validation_sequence_generator = self.generate_validation_sequences(batch_size=batch_size, 
+																			   training_save_file=training_save_file,
+																			   validation_sample_idxs=validation_sample_idxs)
 			pbi = ProgressDisplay()
 			self.osr.fit_generator(generator=training_sequence_generator,
 								   validation_data=validation_sequence_generator,
@@ -77,48 +84,41 @@ class OpticalSpeechRecognizer(object):
 								   class_weight=None,
 								   nb_worker=1)
 
-	def generate_training_sequences(self, batch_size, validation_ratio=0):
+	def generate_training_sequences(self, batch_size, training_save_file, training_sample_idxs):
 		""" Generates training sequences from HDF5 file on demand
 		"""
 		while True:
-			with h5py.File(self.training_save_fn, "r") as training_save_file:
-				sample_count = int(training_save_file.attrs["sample_count"])
-				sample_idxs = range(0, sample_count)
-				shuffle(sample_idxs)
-				training_sample_idxs = sample_idxs[0:int((1-validation_ratio)*sample_count)]
-				validation_sample_idxs = sample_idxs[int((1-validation_ratio)*sample_count):]
-				  
-				# generate sequences for validation
-				if validation_ratio:
-					validation_sample_count = len(validation_sample_idxs)
-					batches = int(validation_sample_count/batch_size)
-					remainder_samples = validation_sample_count%batch_size
-					# generate batches of samples
-					for idx in xrange(0, batches):
-						X = training_save_file["X"][validation_sample_idxs[idx*batch_size:idx*batch_size+batch_size]]
-						Y = training_save_file["Y"][validation_sample_idxs[idx*batch_size:idx*batch_size+batch_size]]
-						yield (np.array(X), np.array(Y))
-					# send remainder samples as one batch, if there are any
-					if remainder_samples:
-						X = training_save_file["X"][validation_sample_idxs[-remainder_samples:]]
-						Y = training_save_file["Y"][validation_sample_idxs[-remainder_samples:]]
-						yield (np.array(X), np.array(Y))
+			# generate sequences for training
+			training_sample_count = len(training_sample_idxs)
+			batches = int(training_sample_count/batch_size)
+			remainder_samples = training_sample_count%batch_size
+			# generate batches of samples
+			for idx in xrange(0, batches):
+				X = training_save_file["X"][training_sample_idxs[idx*batch_size:idx*batch_size+batch_size]]
+				Y = training_save_file["Y"][training_sample_idxs[idx*batch_size:idx*batch_size+batch_size]]
+				yield (np.array(X), np.array(Y))
+			# send remainder samples as one batch, if there are any
+			if remainder_samples:
+				X = training_save_file["X"][training_sample_idxs[-remainder_samples:]]
+				Y = training_save_file["Y"][training_sample_idxs[-remainder_samples:]]
+				yield (np.array(X), np.array(Y))
 
-				# generate sequences for training
-				else:
-					training_sample_count = len(training_sample_idxs)
-					batches = int(training_sample_count/batch_size)
-					remainder_samples = training_sample_count%batch_size
-					# generate batches of samples
-					for idx in xrange(0, batches):
-						X = training_save_file["X"][training_sample_idxs[idx*batch_size:idx*batch_size+batch_size]]
-						Y = training_save_file["Y"][training_sample_idxs[idx*batch_size:idx*batch_size+batch_size]]
-						yield (np.array(X), np.array(Y))
-					# send remainder samples as one batch, if there are any
-					if remainder_samples:
-						X = training_save_file["X"][training_sample_idxs[-remainder_samples:]]
-						Y = training_save_file["Y"][training_sample_idxs[-remainder_samples:]]
-						yield (np.array(X), np.array(Y))
+	def generate_validation_sequences(self, batch_size, training_save_file, validation_sample_idxs):
+		while True:
+			# generate sequences for validation
+			validation_sample_count = len(validation_sample_idxs)
+			batches = int(validation_sample_count/batch_size)
+			remainder_samples = validation_sample_count%batch_size
+			# generate batches of samples
+			for idx in xrange(0, batches):
+				X = training_save_file["X"][validation_sample_idxs[idx*batch_size:idx*batch_size+batch_size]]
+				Y = training_save_file["Y"][validation_sample_idxs[idx*batch_size:idx*batch_size+batch_size]]
+				yield (np.array(X), np.array(Y))
+			# send remainder samples as one batch, if there are any
+			if remainder_samples:
+				X = training_save_file["X"][validation_sample_idxs[-remainder_samples:]]
+				Y = training_save_file["Y"][validation_sample_idxs[-remainder_samples:]]
+				yield (np.array(X), np.array(Y))
 
 	def print_osr_summary(self):
 		""" Prints a summary representation of the OSR model
