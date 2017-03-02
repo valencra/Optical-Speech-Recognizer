@@ -72,6 +72,11 @@ class OpticalSpeechRecognizer(object):
 			validation_sequence_generator = self.generate_validation_sequences(batch_size=batch_size, 
 																			   training_save_file=training_save_file,
 																			   validation_sample_idxs=validation_sample_idxs)
+			
+			print "Sample Idxs: {0}\n".format(sample_idxs) # FOR DEBUG ONLY
+			print "Training Idxs: {0}\n".format(training_sample_idxs) # FOR DEBUG ONLY
+			print "Validation Idxs: {0}\n".format(validation_sample_idxs) # FOR DEBUG ONLY
+
 			pbi = ProgressDisplay()
 			self.osr.fit_generator(generator=training_sequence_generator,
 								   validation_data=validation_sequence_generator,
@@ -96,11 +101,17 @@ class OpticalSpeechRecognizer(object):
 			for idx in xrange(0, batches):
 				X = training_save_file["X"][training_sample_idxs[idx*batch_size:idx*batch_size+batch_size]]
 				Y = training_save_file["Y"][training_sample_idxs[idx*batch_size:idx*batch_size+batch_size]]
+				
+				print training_sample_idxs[idx*batch_size:idx*batch_size+batch_size] # FOR DEBUG ONLY
+
 				yield (np.array(X), np.array(Y))
 			# send remainder samples as one batch, if there are any
 			if remainder_samples:
 				X = training_save_file["X"][training_sample_idxs[-remainder_samples:]]
 				Y = training_save_file["Y"][training_sample_idxs[-remainder_samples:]]
+				
+				print training_sample_idxs[idx*batch_size:idx*batch_size+batch_size] # FOR DEBUG ONLY
+
 				yield (np.array(X), np.array(Y))
 
 	def generate_validation_sequences(self, batch_size, training_save_file, validation_sample_idxs):
@@ -113,11 +124,17 @@ class OpticalSpeechRecognizer(object):
 			for idx in xrange(0, batches):
 				X = training_save_file["X"][validation_sample_idxs[idx*batch_size:idx*batch_size+batch_size]]
 				Y = training_save_file["Y"][validation_sample_idxs[idx*batch_size:idx*batch_size+batch_size]]
+				
+				print training_sample_idxs[idx*batch_size:idx*batch_size+batch_size] # FOR DEBUG ONLY
+
 				yield (np.array(X), np.array(Y))
 			# send remainder samples as one batch, if there are any
 			if remainder_samples:
 				X = training_save_file["X"][validation_sample_idxs[-remainder_samples:]]
 				Y = training_save_file["Y"][validation_sample_idxs[-remainder_samples:]]
+				
+				print training_sample_idxs[idx*batch_size:idx*batch_size+batch_size] # FOR DEBUG ONLY
+
 				yield (np.array(X), np.array(Y))
 
 	def print_osr_summary(self):
@@ -218,7 +235,7 @@ class OpticalSpeechRecognizer(object):
 																   dtype="f")
 			y_training_dataset = training_save_file.create_dataset("Y",
 																   shape=(sample_count, len(training_classes)),
-																   dtype="i")
+																   dtype="f")
 
 			# iterate through each class data
 			sample_idx = 0
@@ -332,7 +349,7 @@ class ProgressDisplay(Callback):
 
 if __name__ == "__main__":
 	# Example usage
-	osr = OpticalSpeechRecognizer(samples_generated_per_sample=10, 
+	osr = OpticalSpeechRecognizer(samples_generated_per_sample=5, 
 								  frames_per_sequence=30, 
 								  rows=100, 
 								  columns=150,
