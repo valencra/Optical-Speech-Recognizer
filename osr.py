@@ -12,7 +12,6 @@ from keras.preprocessing.image import random_rotation, random_shift, random_shea
 from keras.utils import np_utils
 from keras.utils.io_utils import HDF5Matrix
 from pprint import pprint
-from random import shuffle
 from sklearn.utils import shuffle
 K.set_image_dim_ordering("th")
 
@@ -63,7 +62,7 @@ class OpticalSpeechRecognizer(object):
 		with h5py.File(self.training_save_fn, "r") as training_save_file:
 			sample_count = int(training_save_file.attrs["sample_count"])
 			sample_idxs = range(0, sample_count)
-			shuffle(sample_idxs)
+			sample_idxs = np.random.permutation(sample_idxs)
 			training_sample_idxs = sample_idxs[0:int((1-validation_ratio)*sample_count)]
 			validation_sample_idxs = sample_idxs[int((1-validation_ratio)*sample_count):]
 			training_sequence_generator = self.generate_training_sequences(batch_size=batch_size, 
@@ -97,20 +96,19 @@ class OpticalSpeechRecognizer(object):
 			training_sample_count = len(training_sample_idxs)
 			batches = int(training_sample_count/batch_size)
 			remainder_samples = training_sample_count%batch_size
+			if remainder_samples:
+				batches = batches + 1
 			# generate batches of samples
 			for idx in xrange(0, batches):
-				X = training_save_file["X"][training_sample_idxs[idx*batch_size:idx*batch_size+batch_size]]
-				Y = training_save_file["Y"][training_sample_idxs[idx*batch_size:idx*batch_size+batch_size]]
-				
-				print training_sample_idxs[idx*batch_size:idx*batch_size+batch_size] # FOR DEBUG ONLY
+				if idx == batches - 1:
+					batch_idxs = training_sample_idxs[idx*batch_size:]
+				else:
+					batch_idxs = training_sample_idxs[idx*batch_size:idx*batch_size+batch_size]
 
-				yield (np.array(X), np.array(Y))
-			# send remainder samples as one batch, if there are any
-			if remainder_samples:
-				X = training_save_file["X"][training_sample_idxs[-remainder_samples:]]
-				Y = training_save_file["Y"][training_sample_idxs[-remainder_samples:]]
-				
-				print training_sample_idxs[idx*batch_size:idx*batch_size+batch_size] # FOR DEBUG ONLY
+				X = training_save_file["X"][batch_idxs]
+				Y = training_save_file["Y"][batch_idxs]
+
+				print batch_idxs # FOR DEBUG ONLY
 
 				yield (np.array(X), np.array(Y))
 
@@ -120,20 +118,19 @@ class OpticalSpeechRecognizer(object):
 			validation_sample_count = len(validation_sample_idxs)
 			batches = int(validation_sample_count/batch_size)
 			remainder_samples = validation_sample_count%batch_size
+			if remainder_samples:
+				batches = batches + 1
 			# generate batches of samples
 			for idx in xrange(0, batches):
-				X = training_save_file["X"][validation_sample_idxs[idx*batch_size:idx*batch_size+batch_size]]
-				Y = training_save_file["Y"][validation_sample_idxs[idx*batch_size:idx*batch_size+batch_size]]
-				
-				print training_sample_idxs[idx*batch_size:idx*batch_size+batch_size] # FOR DEBUG ONLY
+				if idx == batches - 1:
+					batch_idxs = validation_sample_idxs[idx*batch_size:]
+				else:
+					batch_idxs = validation_sample_idxs[idx*batch_size:idx*batch_size+batch_size]
 
-				yield (np.array(X), np.array(Y))
-			# send remainder samples as one batch, if there are any
-			if remainder_samples:
-				X = training_save_file["X"][validation_sample_idxs[-remainder_samples:]]
-				Y = training_save_file["Y"][validation_sample_idxs[-remainder_samples:]]
+				X = training_save_file["X"][batch_idxs]
+				Y = training_save_file["Y"][batch_idxs]
 				
-				print training_sample_idxs[idx*batch_size:idx*batch_size+batch_size] # FOR DEBUG ONLY
+				print batch_idxs # FOR DEBUG ONLY
 
 				yield (np.array(X), np.array(Y))
 
@@ -235,7 +232,7 @@ class OpticalSpeechRecognizer(object):
 																   dtype="f")
 			y_training_dataset = training_save_file.create_dataset("Y",
 																   shape=(sample_count, len(training_classes)),
-																   dtype="f")
+																   dtype="i")
 
 			# iterate through each class data
 			sample_idx = 0
@@ -256,7 +253,7 @@ class OpticalSpeechRecognizer(object):
 					samples_batch = self.process_frames(training_class_sequence_path)
 					label = [0]*len(training_classes)
 					label[class_label] = 1
-					label = np.array(label).astype("float32")
+					label = np.array(label).astype("int32")
 
 					for sample in samples_batch:
 						x_training_dataset[sample_idx] = sample
@@ -330,10 +327,10 @@ class OpticalSpeechRecognizer(object):
 		samples_batch = [np.array(map(proc_frame, frames))]
 		# random transformations for data augmentation
 		for _ in xrange(0, self.samples_generated_per_sample-1):
-			rotated_frames = random_rotation(frames, rg=45)
-			shifted_frames = random_shift(rotated_frames, wrg=0.25, hrg=0.25)
-			sheared_frames = random_shear(shifted_frames, intensity=0.79)
-			zoomed_frames = random_zoom(sheared_frames, zoom_range=(1.25, 1.25))
+			rotated_frames = random_rotation(frames, rg=4.5)
+			shifted_frames = random_shift(rotated_frames, wrg=0.05, hrg=0.05)
+			sheared_frames = random_shear(shifted_frames, intensity=0.08)
+			zoomed_frames = random_zoom(sheared_frames, zoom_range=(1.05, 1.05))
 			samples_batch.append(np.array(map(proc_frame, zoomed_frames)))
 
 		return samples_batch
@@ -349,7 +346,7 @@ class ProgressDisplay(Callback):
 
 if __name__ == "__main__":
 	# Example usage
-	osr = OpticalSpeechRecognizer(samples_generated_per_sample=5, 
+	osr = OpticalSpeechRecognizer(samples_generated_per_sample=10, 
 								  frames_per_sequence=30, 
 								  rows=100, 
 								  columns=150,
