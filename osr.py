@@ -70,11 +70,6 @@ class OpticalSpeechRecognizer(object):
 			validation_sequence_generator = self.generate_validation_sequences(batch_size=batch_size,
 																			   training_save_file=training_save_file,
 																			   validation_sample_idxs=validation_sample_idxs)
-
-			print "Sample Idxs: {0}\n".format(sample_idxs) # FOR DEBUG ONLY
-			print "Training Idxs: {0}\n".format(training_sample_idxs) # FOR DEBUG ONLY
-			print "Validation Idxs: {0}\n".format(validation_sample_idxs) # FOR DEBUG ONLY
-
 			pbi = ProgressDisplay()
 			self.osr.fit_generator(generator=training_sequence_generator,
 								   validation_data=validation_sequence_generator,
@@ -104,7 +99,6 @@ class OpticalSpeechRecognizer(object):
 				else:
 					batch_idxs = training_sample_idxs[idx*batch_size:idx*batch_size+batch_size]
 				batch_idxs = sorted(batch_idxs)
-				print batch_idxs # FOR DEBUG ONLY
 
 				X = training_save_file["X"][batch_idxs]
 				Y = training_save_file["Y"][batch_idxs]
@@ -126,7 +120,6 @@ class OpticalSpeechRecognizer(object):
 				else:
 					batch_idxs = validation_sample_idxs[idx*batch_size:idx*batch_size+batch_size]
 				batch_idxs = sorted(batch_idxs)
-				print batch_idxs # FOR DEBUG ONLY
 
 				X = training_save_file["X"][batch_idxs]
 				Y = training_save_file["Y"][batch_idxs]
