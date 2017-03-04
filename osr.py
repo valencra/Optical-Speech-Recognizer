@@ -104,6 +104,7 @@ class OpticalSpeechRecognizer(object):
 				else:
 					batch_idxs = training_sample_idxs[idx*batch_size:idx*batch_size+batch_size]
 
+				batch_size = sorted(batch_size)
 				print batch_idxs # FOR DEBUG ONLY
 
 				X = training_save_file["X"][batch_idxs]
@@ -126,6 +127,7 @@ class OpticalSpeechRecognizer(object):
 				else:
 					batch_idxs = validation_sample_idxs[idx*batch_size:idx*batch_size+batch_size]
 
+				batch_size = sorted(batch_size)
 				print batch_idxs # FOR DEBUG ONLY
 
 				X = training_save_file["X"][batch_idxs]
