@@ -12,7 +12,6 @@ from keras.preprocessing.image import random_rotation, random_shift, random_shea
 from keras.utils import np_utils
 from keras.utils.io_utils import HDF5Matrix
 from pprint import pprint
-from sklearn.utils import shuffle
 K.set_image_dim_ordering("th")
 
 import cv2
@@ -105,10 +104,10 @@ class OpticalSpeechRecognizer(object):
 				else:
 					batch_idxs = training_sample_idxs[idx*batch_size:idx*batch_size+batch_size]
 
+				print batch_idxs # FOR DEBUG ONLY
+
 				X = training_save_file["X"][batch_idxs]
 				Y = training_save_file["Y"][batch_idxs]
-
-				print batch_idxs # FOR DEBUG ONLY
 
 				yield (np.array(X), np.array(Y))
 
@@ -127,10 +126,10 @@ class OpticalSpeechRecognizer(object):
 				else:
 					batch_idxs = validation_sample_idxs[idx*batch_size:idx*batch_size+batch_size]
 
+				print batch_idxs # FOR DEBUG ONLY
+
 				X = training_save_file["X"][batch_idxs]
 				Y = training_save_file["Y"][batch_idxs]
-				
-				print batch_idxs # FOR DEBUG ONLY
 
 				yield (np.array(X), np.array(Y))
 
