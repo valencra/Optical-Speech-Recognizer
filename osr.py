@@ -34,7 +34,7 @@ class OpticalSpeechRecognizer(object):
 		self.osr = None
 
 	def save_osr_model(self):
-		""" Save the OSR model to an HDF5 file 
+		""" Save the OSR model to an HDF5 file
 		"""
 		# delete file if it already exists
 		try:
@@ -64,13 +64,13 @@ class OpticalSpeechRecognizer(object):
 			sample_idxs = np.random.permutation(sample_idxs)
 			training_sample_idxs = sample_idxs[0:int((1-validation_ratio)*sample_count)]
 			validation_sample_idxs = sample_idxs[int((1-validation_ratio)*sample_count):]
-			training_sequence_generator = self.generate_training_sequences(batch_size=batch_size, 
+			training_sequence_generator = self.generate_training_sequences(batch_size=batch_size,
 																		   training_save_file=training_save_file,
 																		   training_sample_idxs=training_sample_idxs)
-			validation_sequence_generator = self.generate_validation_sequences(batch_size=batch_size, 
+			validation_sequence_generator = self.generate_validation_sequences(batch_size=batch_size,
 																			   training_save_file=training_save_file,
 																			   validation_sample_idxs=validation_sample_idxs)
-			
+
 			print "Sample Idxs: {0}\n".format(sample_idxs) # FOR DEBUG ONLY
 			print "Training Idxs: {0}\n".format(training_sample_idxs) # FOR DEBUG ONLY
 			print "Validation Idxs: {0}\n".format(validation_sample_idxs) # FOR DEBUG ONLY
@@ -103,8 +103,7 @@ class OpticalSpeechRecognizer(object):
 					batch_idxs = training_sample_idxs[idx*batch_size:]
 				else:
 					batch_idxs = training_sample_idxs[idx*batch_size:idx*batch_size+batch_size]
-
-				batch_size = sorted(batch_size)
+				batch_idxs = sorted(batch_idxs)
 				print batch_idxs # FOR DEBUG ONLY
 
 				X = training_save_file["X"][batch_idxs]
@@ -126,8 +125,7 @@ class OpticalSpeechRecognizer(object):
 					batch_idxs = validation_sample_idxs[idx*batch_size:]
 				else:
 					batch_idxs = validation_sample_idxs[idx*batch_size:idx*batch_size+batch_size]
-
-				batch_size = sorted(batch_size)
+				batch_idxs = sorted(batch_idxs)
 				print batch_idxs # FOR DEBUG ONLY
 
 				X = training_save_file["X"][batch_idxs]
@@ -153,7 +151,7 @@ class OpticalSpeechRecognizer(object):
 							 self.rows,
 							 self.columns))
 		cnn_base = VGG16(input_shape=(3,
-									  self.rows, 
+									  self.rows,
 									  self.columns),
 						 weights="imagenet",
 						 include_top=False)
@@ -228,7 +226,7 @@ class OpticalSpeechRecognizer(object):
 		with h5py.File(self.training_save_fn, "w") as training_save_file:
 			training_save_file.attrs["training_classes"] = np.string_(",".join(training_classes))
 			training_save_file.attrs["sample_count"] = sample_count
-			x_training_dataset = training_save_file.create_dataset("X", 
+			x_training_dataset = training_save_file.create_dataset("X",
 																   shape=(sample_count, self.frames_per_sequence, 3, self.rows, self.columns),
 																   dtype="f")
 			y_training_dataset = training_save_file.create_dataset("Y",
@@ -249,7 +247,7 @@ class OpticalSpeechRecognizer(object):
 					sys.stdout.write("Processing training data for class \"{0}\": {1}/{2} sequences\r"
 								     .format(training_class, idx+1, len(training_class_sequence_paths)))
 					sys.stdout.flush()
-					
+
 					# accumulate samples and labels
 					samples_batch = self.process_frames(training_class_sequence_path)
 					label = [0]*len(training_classes)
@@ -282,7 +280,7 @@ class OpticalSpeechRecognizer(object):
 		frames = []
 		success = True
 
-		# convert to grayscale, localize oral region, equalize frame dimensions, and accumulate valid frames 
+		# convert to grayscale, localize oral region, equalize frame dimensions, and accumulate valid frames
 		while success:
 		  success, frame = video.read()
 		  if success:
@@ -317,7 +315,7 @@ class OpticalSpeechRecognizer(object):
 			else:
 				pass
 
-		# equalize sequence lengths 
+		# equalize sequence lengths
 		if len(frames) < self.frames_per_sequence:
 			frames = [frames[0]]*(self.frames_per_sequence - len(frames)) + frames
 		frames = np.array(frames[-self.frames_per_sequence:])
@@ -347,14 +345,14 @@ class ProgressDisplay(Callback):
 
 if __name__ == "__main__":
 	# Example usage
-	osr = OpticalSpeechRecognizer(samples_generated_per_sample=10, 
-								  frames_per_sequence=30, 
-								  rows=100, 
+	osr = OpticalSpeechRecognizer(samples_generated_per_sample=10,
+								  frames_per_sequence=30,
+								  rows=100,
 								  columns=150,
-								  config_file="training_config.json", 
-								  training_save_fn="training_data.h5", 
+								  config_file="training_config.json",
+								  training_save_fn="training_data.h5",
 								  osr_save_fn="osr_model.h5")
-	osr.process_training_data()
+	# osr.process_training_data()
 	osr.generate_osr_model()
 	osr.print_osr_summary()
 	osr.train_osr_model()
