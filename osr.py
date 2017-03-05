@@ -2,7 +2,7 @@ from keras import backend as K
 from keras.applications.vgg16 import VGG16
 from keras.callbacks import Callback
 from keras.constraints import maxnorm
-from keras.models import Model, load_model
+from keras.models import Model, model_from_json
 from keras.layers import Dense, Dropout, Flatten, Input
 from keras.layers.pooling import GlobalAveragePooling2D
 from keras.layers.recurrent import LSTM
@@ -23,7 +23,7 @@ import numpy as np
 
 
 class OpticalSpeechRecognizer(object):
-	def __init__(self, samples_generated_per_sample, frames_per_sequence, rows, columns, config_file, training_save_fn, osr_save_fn):
+	def __init__(self, samples_generated_per_sample, frames_per_sequence, rows, columns, config_file, training_save_fn, osr_save_fn, osr_weights_save_fn):
 		self.samples_generated_per_sample = samples_generated_per_sample
 		self.frames_per_sequence = frames_per_sequence
 		self.rows = rows
@@ -31,26 +31,48 @@ class OpticalSpeechRecognizer(object):
 		self.config_file = config_file
 		self.training_save_fn = training_save_fn
 		self.osr_save_fn = osr_save_fn
+		self.osr_weights_save_fn = osr_weights_save_fn
 		self.osr = None
 
 	def save_osr_model(self):
 		""" Save the OSR model to an HDF5 file
 		"""
-		# delete file if it already exists
+		# delete save files, if they already exist
 		try:
-			print "Saved file \"{0}\" already exists! Overwriting previous saved file.\n".format(self.osr_save_fn)
+			print "\nOSR save file \"{0}\" already exists! Overwriting previous saved file.".format(self.osr_save_fn)
 			os.remove(self.osr_save_fn)
 		except OSError:
 			pass
+		try:
+			print "OSR weights save file \"{0}\" already exists! Overwriting previous saved file.\n".format(self.osr_weights_save_fn)
+			os.remove(self.osr_weights_save_fn)
+		except OSError:
+			pass
 
-		print "Saving OSR model to \"{0}\"".format(self.osr_save_fn)
-		self.osr.save(self.osr_save_fn)
+		# save OSR model
+		print "\nSaving OSR model to \"{0}\"".format(self.osr_save_fn)
+		with open(self.osr_save_fn, "w") as osr_save_file:
+			osr_model_json = self.osr.to_json()
+			osr_save_file.write(osr_model_json)
+
+		# save OSR model weights
+		print "Saving OSR model weights to \"{0}\"".format(self.osr_weights_save_fn)
+		self.osr.save_weights(self.osr_weights_save_fn)
+
+		print "Saved OSR model and weights to disk\n"
 
 	def load_osr_model(self):
 		""" Load the OSR model from an HDF5 file
 		"""
-		print "Loading OSR model from \"{0}\"".format(self.osr_save_fn)
-		self.osr = load_model(self.osr_save_fn)
+		print "\nLoading OSR model from \"{0}\"".format(self.osr_save_fn)
+		print "Loading OSR model weights from \"{0}\"".format(self.osr_weights_save_fn)
+
+		with open(self.osr_save_fn, "r") as osr_save_file:
+			osr_model_json = osr_save_file.read()
+			self.osr = model_from_json(osr_model_json)
+		with open(self.osr_weights_save_fn, "r") as osr_weights_save_file:
+			self.osr.load_weights(self.osr_weights_save_fn)
+			print "Loaded OSR model and weights from disk\n"
 
 	def train_osr_model(self):
 		""" Train the optical speech recognizer
@@ -75,7 +97,7 @@ class OpticalSpeechRecognizer(object):
 								   validation_data=validation_sequence_generator,
 								   samples_per_epoch=len(training_sample_idxs),
 								   nb_val_samples=len(validation_sample_idxs),
-								   nb_epoch=10,
+								   nb_epoch=15,
 								   max_q_size=1,
 								   verbose=2,
 								   callbacks=[pbi],
@@ -344,8 +366,9 @@ if __name__ == "__main__":
 								  columns=150,
 								  config_file="training_config.json",
 								  training_save_fn="training_data.h5",
-								  osr_save_fn="osr_model.h5")
-	# osr.process_training_data()
+								  osr_save_fn="osr_model.json",
+								  osr_weights_save_fn="osr_weights.h5")
+	osr.process_training_data()
 	osr.generate_osr_model()
 	osr.print_osr_summary()
 	osr.train_osr_model()
