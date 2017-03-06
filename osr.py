@@ -65,14 +65,24 @@ class OpticalSpeechRecognizer(object):
 		""" Load the OSR model from an HDF5 file
 		"""
 		print "\nLoading OSR model from \"{0}\"".format(self.osr_save_fn)
-		print "Loading OSR model weights from \"{0}\"".format(self.osr_weights_save_fn)
-
 		with open(self.osr_save_fn, "r") as osr_save_file:
 			osr_model_json = osr_save_file.read()
 			self.osr = model_from_json(osr_model_json)
+
+		print "Loading OSR model weights from \"{0}\"".format(self.osr_weights_save_fn)
 		with open(self.osr_weights_save_fn, "r") as osr_weights_save_file:
 			self.osr.load_weights(self.osr_weights_save_fn)
-			print "Loaded OSR model and weights from disk\n"
+			
+		print "Loaded OSR model and weights from disk\n"
+
+	def predict_words(self, sequences):
+		""" Predicts the word pronounced in each sequence within the given list of sequences
+		"""
+		with h5py.File(self.training_save_fn, "r") as training_save_file:
+			training_classes = training_save_file.attrs["training_classes"].split(",")
+			predictions = self.osr.predict(np.array(sequences)).argmax(axis=-1)
+			predictions = [training_classes[class_prediction] for class_prediction in predictions]
+		return predictions
 
 	def train_osr_model(self):
 		""" Train the optical speech recognizer
@@ -359,7 +369,7 @@ class ProgressDisplay(Callback):
 																					              int(logs["size"]))
 
 if __name__ == "__main__":
-	# Example usage
+	# This is an example of an optical speech recognition workflow
 	osr = OpticalSpeechRecognizer(samples_generated_per_sample=10,
 								  frames_per_sequence=30,
 								  rows=100,
@@ -374,3 +384,13 @@ if __name__ == "__main__":
 	osr.train_osr_model()
 	osr.save_osr_model()
 	osr.load_osr_model()
+	""" This is only an example of how to predict words from preprocessed data
+		Do not use training data in actual demonstrations
+	"""
+	with h5py.File("training_data.h5", "r") as training_save_file:
+		test_sequences = training_save_file["X"][[0, 1, 2]] 
+		print osr.predict_words(test_sequences)
+
+	
+
+
