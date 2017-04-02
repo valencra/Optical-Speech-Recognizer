@@ -369,7 +369,6 @@ class ProgressDisplay(Callback):
 																					              int(logs["size"]))
 
 if __name__ == "__main__":
-	# This is an example of an optical speech recognition workflow
 	osr = OpticalSpeechRecognizer(samples_generated_per_sample=10,
 								  frames_per_sequence=30,
 								  rows=100,
@@ -378,19 +377,18 @@ if __name__ == "__main__":
 								  training_save_fn="training_data.h5",
 								  osr_save_fn="osr_model.json",
 								  osr_weights_save_fn="osr_weights.h5")
+
+	# Training workflow example 
 	osr.process_training_data()
 	osr.generate_osr_model()
 	osr.print_osr_summary()
 	osr.train_osr_model()
 	osr.save_osr_model()
+
+	# Application workflow example. Requires a trained model. Do not use training data for actual tests
 	osr.load_osr_model()
-	""" This is only an example of how to predict words from preprocessed data
-		Do not use training data in actual demonstrations
-	"""
+	osr.print_osr_summary()
 	with h5py.File("training_data.h5", "r") as training_save_file:
 		test_sequences = training_save_file["X"][[0, 1, 2]] 
 		print osr.predict_words(test_sequences)
-
-	
-
 
