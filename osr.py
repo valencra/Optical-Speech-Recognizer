@@ -292,7 +292,28 @@ class OpticalSpeechRecognizer(object):
 
 			print "Training data processed and saved to {0}".format(self.training_save_fn)
 
-	def process_frames(self, video_file_path):
+	def process_testing_data(self, testing_data_dir):
+		""" Preprocesses testing data
+		"""
+		# acquire testing data sequence paths
+		testing_data_sequence_paths = [os.path.join(testing_data_dir, file_name)
+									   for file_name in os.listdir(testing_data_dir)
+									   if (os.path.isfile(os.path.join(testing_data_dir, file_name))
+										  and ".mov" in file_name)]
+
+		# process testing data
+		testing_data = []
+		print "Processing {0} testing samples from {1}\n".format(len(testing_data_sequence_paths),
+																 testing_data_dir)
+		for testing_data_idx, testing_data_sequence_path in enumerate(testing_data_sequence_paths):
+			sys.stdout.write("Processing testing data: {0}/{1} sequences\r"
+						     .format(testing_data_idx+1, len(testing_data_sequence_paths)))
+			sys.stdout.flush()
+			testing_data.append(self.process_frames(testing_data_sequence_path, augment=False))
+
+		return np.array(testing_data), testing_data_sequence_paths
+
+	def process_frames(self, video_file_path, augment=True):
 		""" Preprocesses sequence frames
 		"""
 		# haar cascades for localizing oral region
@@ -348,16 +369,21 @@ class OpticalSpeechRecognizer(object):
 		# function to normalize and add channel dimension to each frame
 		proc_frame = lambda frame: np.array([frame / 255.0]*3)
 
-		samples_batch = [np.array(map(proc_frame, frames))]
-		# random transformations for data augmentation
-		for _ in xrange(0, self.samples_generated_per_sample-1):
-			rotated_frames = random_rotation(frames, rg=4.5)
-			shifted_frames = random_shift(rotated_frames, wrg=0.05, hrg=0.05)
-			sheared_frames = random_shear(shifted_frames, intensity=0.08)
-			zoomed_frames = random_zoom(sheared_frames, zoom_range=(1.05, 1.05))
-			samples_batch.append(np.array(map(proc_frame, zoomed_frames)))
+		if augment:
+			samples_batch = [np.array(map(proc_frame, frames))]
+			# random transformations for data augmentation
+			for _ in xrange(0, self.samples_generated_per_sample-1):
+				rotated_frames = random_rotation(frames, rg=4.5)
+				shifted_frames = random_shift(rotated_frames, wrg=0.05, hrg=0.05)
+				sheared_frames = random_shear(shifted_frames, intensity=0.08)
+				zoomed_frames = random_zoom(sheared_frames, zoom_range=(1.05, 1.05))
+				samples_batch.append(np.array(map(proc_frame, zoomed_frames)))
+			return_data = samples_batch
 
-		return samples_batch
+		else:
+			return_data = np.array(map(proc_frame, frames))
+
+		return return_data
 
 class ProgressDisplay(Callback):
 	""" Progress display callback
@@ -378,17 +404,20 @@ if __name__ == "__main__":
 								  osr_save_fn="osr_model.json",
 								  osr_weights_save_fn="osr_weights.h5")
 
-	# Training workflow example 
-	osr.process_training_data()
-	osr.generate_osr_model()
-	osr.print_osr_summary()
-	osr.train_osr_model()
-	osr.save_osr_model()
+	# # Training workflow example 
+	# osr.process_training_data()
+	# osr.generate_osr_model()
+	# osr.print_osr_summary()
+	# osr.train_osr_model()
+	# osr.save_osr_model()
 
 	# Application workflow example. Requires a trained model. Do not use training data for actual tests
 	osr.load_osr_model()
 	osr.print_osr_summary()
-	with h5py.File("training_data.h5", "r") as training_save_file:
-		test_sequences = training_save_file["X"][[0, 1, 2]] 
-		print osr.predict_words(test_sequences)
+	test_sequences, test_sequence_file_names = osr.process_testing_data("./testing-data")
+	test_predictions = osr.predict_words(test_sequences)
+	print "".join(["Predictions for each test sequence\n",
+				   "----------------------------------"])
+	for file_name, prediction in zip(test_sequence_file_names, test_predictions):
+		print "{0}: {1}".format(file_name, prediction)
 
